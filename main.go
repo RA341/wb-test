@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
 
 	"github.com/gorilla/websocket"
@@ -52,6 +54,20 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		file, err := os.ReadFile("index.html")
+		if err != nil {
+			http.Error(writer, "Unable to serve index.html"+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		_, err = writer.Write(file)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	})
+
 	http.HandleFunc("/ws", handleWS)
 	fmt.Println("Server started on :8080")
 	http.ListenAndServe(":8080", nil)
