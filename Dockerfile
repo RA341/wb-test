@@ -18,4 +18,6 @@ COPY --from=gobuild /app/wb .
 
 COPY index.html index.html
 
+EXPOSE 9933
+
 ENTRYPOINT ["./wb"]

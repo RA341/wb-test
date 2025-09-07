@@ -69,6 +69,6 @@ func main() {
 	})
 
 	http.HandleFunc("/ws", handleWS)
-	fmt.Println("Server started on :8080")
-	http.ListenAndServe(":8080", nil)
+	fmt.Println("Server started on :9933")
+	http.ListenAndServe(":9933", nil)
 }
