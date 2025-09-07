@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Whiteboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #f0f0f0;
+        }
+
+        .container {
+            background-color: #2d2d2d;
+            border: 1px solid #444;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* Adds space between title, controls, and canvas */
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        label {
+            font-size: 14px;
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 30px;
+            height: 30px;
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border-radius: 50%;
+            border: 2px solid #555;
+        }
+        input[type="color"]::-moz-color-swatch {
+            border-radius: 50%;
+            border: 2px solid #555;
+        }
+
+        input[type="range"] {
+            cursor: pointer;
+        }
+
+        button {
+            background-color: #4a4a4a;
+            color: #f0f0f0;
+            border: 1px solid #666;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #5a5a5a;
+        }
+
+        #whiteboard {
+            border: 1px solid #444;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Whiteboard</h1>
+    <canvas id="whiteboard" width="1600" height="800"></canvas>
+</div>
+
+<script>
+    let isReceivingFromServer = false;
+
+    const ws = new WebSocket("ws://localhost:8080/ws");
+
+    ws.onclose = function (ev) {
+        console.log("Connection closed");
+    }
+
+    ws.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        console.log("Client received:", data)
+
+        // Assuming your server sends {type: 'add', data: {...}}
+        const objectData = data.data;
+
+        isReceivingFromServer = true;
+        // Works for any object type
+        fabric.util.enlivenObjects([objectData], (objects) => {
+                canvas.add(...objects);
+                canvas.renderAll();
+                isReceivingFromServer = false;
+            },
+            "",
+            () => {
+            }
+        );
+    }
+
+    ws.onerror = function (event) {
+        console.log("socket error", event)
+    }
+
+    const canvas = new fabric.Canvas('whiteboard', {
+        backgroundColor: '#bdbdbd'
+    });
+
+    // Enable drawing
+    canvas.isDrawingMode = true;
+    canvas.freeDrawingBrush.width = 5;
+
+    // Infinite canvas - pan with Alt+drag
+    let isPanning = false;
+    canvas.on('mouse:down', (e) => {
+        if (e.e.altKey) {
+            isPanning = true;
+            canvas.selection = false;
+        }
+    });
+
+    canvas.on('mouse:move', (e) => {
+        if (isPanning) {
+            canvas.relativePan(new fabric.Point(e.e.movementX, e.e.movementY));
+        }
+    });
+
+    canvas.on('mouse:up', () => {
+        isPanning = false;
+        canvas.selection = true;
+    });
+
+    // Zoom with mouse wheel
+    canvas.on('mouse:wheel', (opt) => {
+        let zoom = canvas.getZoom() * (0.999 ** opt.e.deltaY);
+        canvas.zoomToPoint({x: opt.e.offsetX, y: opt.e.offsetY}, zoom);
+        opt.e.preventDefault();
+    });
+
+    canvas.on('object:added', (e) => {
+        if (isReceivingFromServer) return; // Skip if receiving from server
+
+        const objData = e.target.toObject(['id']); // Include custom properties like ID
+        ws.send(JSON.stringify({
+            type: 'add',
+            data: objData, // Works for paths, rectangles, text, images, etc.
+            timestamp: Date.now()
+        }));
+    });
+
+    canvas.on('object:modified', (e) => {
+        if (isReceivingFromServer) return; // Skip if receiving from server
+
+        const objData = e.target.toObject(['id']);
+        ws.send(JSON.stringify({
+            type: 'modify',
+            data: objData,
+            timestamp: Date.now()
+        }));
+    });
+</script>
+</body>
+</html>
